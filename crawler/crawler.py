@@ -1,11 +1,10 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-import os
-from time import sleep
-import requests
-from bs4 import BeautifulSoup
-from urllib.parse import urlparse
 import csv
+import requests
+from time import sleep
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from urllib.parse import urlparse
+from selenium.webdriver.common.by import By
 
 
 class RottenTomatoesCrawler:
