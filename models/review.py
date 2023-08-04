@@ -1,0 +1,2 @@
+class Review:
+    pass

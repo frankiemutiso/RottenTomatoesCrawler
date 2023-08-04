@@ -1,5 +1,9 @@
+from crawler.crawler import RottenTomatoesCrawler
+
+
 def main():
-    print("Entry...")
+    crawler = RottenTomatoesCrawler()
+    crawler.get_page()
 
 
 if __name__ == "__main__":
