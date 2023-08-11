@@ -12,14 +12,14 @@ class RottenTomatoesCrawler:
         self.url = "https://www.rottentomatoes.com/browse/movies_at_home/?page=1"
         self.cast = []
         self.movies = []
-        self.movies = []
+        self.reviews = []
         self.domain = urlparse(self.url).netloc
         self.driver = None
 
     def get_page(self):
         options = webdriver.ChromeOptions()
-        # options.add_argument("--headless")
-        self.driver = webdriver.Chrome()
+        options.add_argument("--headless")
+        self.driver = webdriver.Chrome(options=options)
         self.driver.get(self.url)
 
         sleep(5)
@@ -92,14 +92,26 @@ class RottenTomatoesCrawler:
             "a", attrs={"data-qa": "audience-rating-count"}
         )
 
+        title_elem = soup.find_all("h1", attrs={"data-qa": "score-panel-title"})
+        title = title_elem[0].text.strip() if len(title_elem) > 0 else ""
+
         # TODO: Consider implementing parallelism to improve the speed of getting the review
         if len(critics_reviews_url_elems) > 0:
-            self.get_critics_reviews(critics_reviews_url_elems[0].get("href"))
+            self.get_critics_reviews(title, critics_reviews_url_elems[0].get("href"))
 
         if len(audience_reviews_url_elems) > 0:
-            self.get_audience_reviews(audience_reviews_url_elems[0].get("href"))
+            self.get_audience_reviews(title, audience_reviews_url_elems[0].get("href"))
 
-    def get_critics_reviews(self, url_chunk):
+        # Save data to csv
+        with open("data/reviews.csv", "w") as reviews_csv:
+            writer = csv.writer(reviews_csv)
+
+            writer.writerow(
+                ["movie", "posted_by", "text", "date_posted", "review_type"]
+            )
+            writer.writerows(self.reviews)
+
+    def get_critics_reviews(self, title, url_chunk):
         self.driver.execute_script("window.open('');")
 
         new_window = self.driver.window_handles[1]
@@ -108,7 +120,7 @@ class RottenTomatoesCrawler:
         complete_url = "https://" + self.domain + url_chunk
         self.driver.get(complete_url)
 
-        sleep(3)
+        sleep(4)
         self.driver.execute_script("window.stop();")
 
         review_rows = self.driver.find_elements(By.CLASS_NAME, ("review-row"))
@@ -127,14 +139,16 @@ class RottenTomatoesCrawler:
                 "./div[@class='review-text-container']//p[@class='review-text']",
             ).text.strip()
 
-            print(f"{posted_by}, {review}, {date_posted}, critic_review\n")
+            self.reviews.append(
+                [title, posted_by, review, date_posted, "critic_review"]
+            )
 
         self.driver.close()
 
         old_window = self.driver.window_handles[0]
         self.driver.switch_to.window(old_window)
 
-    def get_audience_reviews(self, url_chunk):
+    def get_audience_reviews(self, title, url_chunk):
         self.driver.execute_script("window.open('');")
 
         new_window = self.driver.window_handles[1]
@@ -143,7 +157,7 @@ class RottenTomatoesCrawler:
         complete_url = "https://" + self.domain + url_chunk
         self.driver.get(complete_url)
 
-        sleep(3)
+        sleep(4)
         self.driver.execute_script("window.stop();")
 
         review_rows = self.driver.find_elements(By.CLASS_NAME, ("audience-review-row"))
@@ -168,7 +182,9 @@ class RottenTomatoesCrawler:
                 else "N/A"
             )
 
-            print(f"{posted_by}, {review}, {date_posted}, audience_review")
+            self.reviews.append(
+                [title, posted_by, review, date_posted, "audience_review"]
+            )
 
         self.driver.close()
 
