@@ -12,17 +12,20 @@ class RottenTomatoesCrawler:
         self.url = "https://www.rottentomatoes.com/browse/movies_at_home/?page=1"
         self.cast = []
         self.movies = []
+        self.movies = []
+        self.domain = urlparse(self.url).netloc
+        self.driver = None
 
     def get_page(self):
         options = webdriver.ChromeOptions()
-        options.add_argument("--headless")
-        driver = webdriver.Chrome(options=options)
-        driver.get(self.url)
+        # options.add_argument("--headless")
+        self.driver = webdriver.Chrome()
+        self.driver.get(self.url)
 
         sleep(5)
-        driver.execute_script("window.stop();")
+        self.driver.execute_script("window.stop();")
 
-        movie_cards = driver.find_elements(By.CLASS_NAME, ("js-tile-link"))
+        movie_cards = self.driver.find_elements(By.CLASS_NAME, ("js-tile-link"))
 
         for i in range(len(movie_cards) - 1, -1, -1):
             elem = movie_cards[i]
@@ -36,6 +39,8 @@ class RottenTomatoesCrawler:
 
             self.extract_data(url)
 
+        self.driver.quit()
+
     def extract_data(self, url):
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0"
@@ -45,6 +50,7 @@ class RottenTomatoesCrawler:
 
         self.get_cast_and_crew(soup=soup, movie_url=url)
         self.get_metadata(soup=soup)
+        self.get_reviews(soup=soup)
 
     def get_cast_and_crew(self, soup, movie_url):
         try:
@@ -60,7 +66,7 @@ class RottenTomatoesCrawler:
 
                     profile_path_elem = i.find_all("a")
                     profile_url = (
-                        urlparse(movie_url).netloc + profile_path_elem[0].get("href")
+                        self.domain + profile_path_elem[0].get("href")
                         if len(profile_path_elem) > 0
                         else ""
                     )
@@ -78,26 +84,98 @@ class RottenTomatoesCrawler:
         except Exception as e:
             print("Error: ", e)
 
-    def get_reviews(self):
-        pass
+    def get_reviews(self, soup):
+        critics_reviews_url_elems = soup.find_all(
+            "a", attrs={"data-qa": "tomatometer-review-count"}
+        )
+        audience_reviews_url_elems = soup.find_all(
+            "a", attrs={"data-qa": "audience-rating-count"}
+        )
+
+        # TODO: Consider implementing parallelism to improve the speed of getting the review
+        if len(critics_reviews_url_elems) > 0:
+            self.get_critics_reviews(critics_reviews_url_elems[0].get("href"))
+
+        if len(audience_reviews_url_elems) > 0:
+            self.get_audience_reviews(audience_reviews_url_elems[0].get("href"))
+
+    def get_critics_reviews(self, url_chunk):
+        self.driver.execute_script("window.open('');")
+
+        new_window = self.driver.window_handles[1]
+        self.driver.switch_to.window(new_window)
+
+        complete_url = "https://" + self.domain + url_chunk
+        self.driver.get(complete_url)
+
+        sleep(3)
+        self.driver.execute_script("window.stop();")
+
+        review_rows = self.driver.find_elements(By.CLASS_NAME, ("review-row"))
+
+        for i in review_rows:
+            posted_by = i.find_element(
+                By.XPATH,
+                "./div[@class='review-data']//div[@class='reviewer-name-and-publication']//a[@class='display-name']",
+            ).text.strip()
+            date_posted = i.find_element(
+                By.XPATH,
+                "./div[@class='review-text-container']//p[@class='original-score-and-url']//span[@data-qa='review-date']",
+            ).text.strip()
+            review = i.find_element(
+                By.XPATH,
+                "./div[@class='review-text-container']//p[@class='review-text']",
+            ).text.strip()
+
+            print(f"{posted_by}, {review}, {date_posted}, critic_review\n")
+
+        self.driver.close()
+
+        old_window = self.driver.window_handles[0]
+        self.driver.switch_to.window(old_window)
+
+    def get_audience_reviews(self, url_chunk):
+        self.driver.execute_script("window.open('');")
+
+        new_window = self.driver.window_handles[1]
+        self.driver.switch_to.window(new_window)
+
+        complete_url = "https://" + self.domain + url_chunk
+        self.driver.get(complete_url)
+
+        sleep(3)
+        self.driver.execute_script("window.stop();")
+
+        review_rows = self.driver.find_elements(By.CLASS_NAME, ("audience-review-row"))
+
+        for row in review_rows:
+            posted_by_elems = row.find_elements(By.CLASS_NAME, "audience-reviews__name")
+            posted_by = (
+                posted_by_elems[0].text.strip() if len(posted_by_elems) > 0 else "N/A"
+            )
+
+            review_elems = row.find_elements(
+                By.CSS_SELECTOR, "p[data-qa='review-text']"
+            )
+            review = review_elems[0].text.strip() if len(review_elems) > 0 else "N/A"
+
+            date_posted_elems = row.find_elements(
+                By.CSS_SELECTOR, "span[class='audience-reviews__duration']"
+            )
+            date_posted = (
+                date_posted_elems[0].text.strip()
+                if len(date_posted_elems) > 0
+                else "N/A"
+            )
+
+            print(f"{posted_by}, {review}, {date_posted}, audience_review")
+
+        self.driver.close()
+
+        old_window = self.driver.window_handles[0]
+        self.driver.switch_to.window(old_window)
 
     def get_metadata(self, soup):
-        info_labels = [
-            "Rating:",
-            "Genre:",
-            "Original Language:",
-            "Director:",
-            "Producer:",
-            "Writer:",
-            "Release Date (Theaters):",
-            "Release Date (Streaming):",
-            "Box Office (Gross USA):",
-            "Runtime:",
-            "Distributor:",
-            "Production Co:",
-            "Sound Mix:",
-        ]
-
         try:
             thumbnail_elem = soup.find_all("tile-dynamic", attrs={"class": "thumbnail"})
             thumbnail = (
@@ -135,38 +213,36 @@ class RottenTomatoesCrawler:
 
             for item in list_item_elems:
                 p_elem = item.find("p")
+
                 label = p_elem.find("b").text.strip()
+                value = p_elem.find("span").text.strip()
 
-                if label in info_labels:
-                    value = p_elem.find("span").text.strip()
-                    label_index = info_labels.index(label)
-
-                    if label_index == 0:
-                        rating = value
-                    if label_index == 1:
-                        genre = [word.strip() for word in value.split(",")]
-                    if label_index == 2:
-                        language = value
-                    if label_index == 3:
-                        director = [word.strip() for word in value.split(",")]
-                    if label_index == 4:
-                        producer = [word.strip() for word in value.split(",")]
-                    if label_index == 5:
-                        writer = [word.strip() for word in value.split(",")]
-                    if label_index == 6:
-                        theater_release_date = value
-                    if label_index == 7:
-                        streaming_release_date = value
-                    if label_index == 8:
-                        usa_box_office_gross = value
-                    if label_index == 9:
-                        runtime = value
-                    if label_index == 10:
-                        distributor = value
-                    if label_index == 11:
-                        production_company = [word.strip() for word in value.split(",")]
-                    if label_index == 12:
-                        sound_mix = [word.strip() for word in value.split(",")]
+                if label == "Rating:":
+                    rating = value
+                if label == "Genre:":
+                    genre = [word.strip() for word in value.split(",")]
+                if label == "Original Language:":
+                    language = value
+                if label == "Director:":
+                    director = [word.strip() for word in value.split(",")]
+                if label == "Producer:":
+                    producer = [word.strip() for word in value.split(",")]
+                if label == "Writer:":
+                    writer = [word.strip() for word in value.split(",")]
+                if label == "Release Date (Theaters):":
+                    theater_release_date = value
+                if label == "Release Date (Streaming):":
+                    streaming_release_date = value
+                if label == "Box Office (Gross USA):":
+                    usa_box_office_gross = value
+                if label == "Runtime:":
+                    runtime = value
+                if label == "Distributor:":
+                    distributor = value
+                if label == "Production Co:":
+                    production_company = [word.strip() for word in value.split(",")]
+                if label == "Sound Mix:":
+                    sound_mix = [word.strip() for word in value.split(",")]
 
             self.movies.append(
                 [
