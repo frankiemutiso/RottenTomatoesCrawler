@@ -25,23 +25,37 @@ class RottenTomatoesCrawler:
         sleep(5)
         self.driver.execute_script("window.stop();")
 
-        movie_cards = self.driver.find_elements(By.CLASS_NAME, ("js-tile-link"))
+        more_btn = self.driver.find_elements(
+            By.CSS_SELECTOR, "button[data-qa='dlp-load-more-button']"
+        )
 
-        for i in range(len(movie_cards) - 1, -1, -1):
-            elem = movie_cards[i]
-            url = None
+        while len(more_btn) > 0:
+            last_index = -1
+            temp_index = 0
+            movie_cards = self.driver.find_elements(By.CLASS_NAME, ("js-tile-link"))
 
-            if elem.tag_name == "a":
-                url = elem.get_attribute("href")
-            else:
-                inner_elem = elem.find_element(By.XPATH, ("./tile-dynamic//a"))
-                url = inner_elem.get_attribute("href")
+            for i in range(len(movie_cards) - 1, last_index, -1):
+                elem = movie_cards[i]
+                url = None
 
-            self.extract_data(url)
+                if elem.tag_name == "a":
+                    url = elem.get_attribute("href")
+                else:
+                    inner_elem = elem.find_element(By.XPATH, ("./tile-dynamic//a"))
+                    url = inner_elem.get_attribute("href")
+
+                self.extract_data(url)
+                temp_index = i
+
+            last_index = temp_index
+            more_btn[0].click()
+            sleep(5)
 
         self.driver.quit()
 
     def extract_data(self, url):
+        print(f"Crawling {url}")
+
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0"
         }
@@ -54,6 +68,8 @@ class RottenTomatoesCrawler:
 
     def get_cast_and_crew(self, soup, movie_url):
         try:
+            print(f"Getting cast and crew from {movie_url}")
+
             cast_elems = soup.find("div", attrs={"class": "cast-wrap"}).find_all("div")
 
             for i in cast_elems:
@@ -81,6 +97,8 @@ class RottenTomatoesCrawler:
 
                 writer.writerow(["movie_url", "actor_profile_url", "name", "role"])
                 writer.writerows(self.cast)
+
+            print(f"Successfully extracted and saved cast and crew from {movie_url}")
         except Exception as e:
             print("Error: ", e)
 
@@ -95,21 +113,23 @@ class RottenTomatoesCrawler:
         title_elem = soup.find_all("h1", attrs={"data-qa": "score-panel-title"})
         title = title_elem[0].text.strip() if len(title_elem) > 0 else ""
 
-        # TODO: Consider implementing parallelism to improve the speed of getting the review
+        print(f"Getting movie reviews for {title}")
+
+        # TODO: Consider implementing parallelism to improve the speed of getting the reviews
         if len(critics_reviews_url_elems) > 0:
             self.get_critics_reviews(title, critics_reviews_url_elems[0].get("href"))
 
         if len(audience_reviews_url_elems) > 0:
             self.get_audience_reviews(title, audience_reviews_url_elems[0].get("href"))
 
-        # Save data to csv
         with open("data/reviews.csv", "w") as reviews_csv:
             writer = csv.writer(reviews_csv)
-
             writer.writerow(
                 ["movie", "posted_by", "text", "date_posted", "review_type"]
             )
             writer.writerows(self.reviews)
+
+        print(f"Successfully extracted and saved movie reviews for {title}")
 
     def get_critics_reviews(self, title, url_chunk):
         self.driver.execute_script("window.open('');")
@@ -120,33 +140,55 @@ class RottenTomatoesCrawler:
         complete_url = "https://" + self.domain + url_chunk
         self.driver.get(complete_url)
 
-        sleep(4)
+        sleep(3)
         self.driver.execute_script("window.stop();")
 
-        review_rows = self.driver.find_elements(By.CLASS_NAME, ("review-row"))
+        has_more = True
+        page = 1
+        max_pages = 51
 
-        for i in review_rows:
-            posted_by = i.find_element(
-                By.XPATH,
-                "./div[@class='review-data']//div[@class='reviewer-name-and-publication']//a[@class='display-name']",
-            ).text.strip()
-            date_posted = i.find_element(
-                By.XPATH,
-                "./div[@class='review-text-container']//p[@class='original-score-and-url']//span[@data-qa='review-date']",
-            ).text.strip()
-            review = i.find_element(
-                By.XPATH,
-                "./div[@class='review-text-container']//p[@class='review-text']",
-            ).text.strip()
+        while has_more:
+            print(f"Getting page {page} of {max_pages} from '{title}' critic reviews")
 
-            self.reviews.append(
-                [title, posted_by, review, date_posted, "critic_review"]
-            )
+            review_rows = self.driver.find_elements(By.CLASS_NAME, ("review-row"))
+
+            for i in review_rows:
+                posted_by = i.find_element(
+                    By.XPATH,
+                    "./div[@class='review-data']//div[@class='reviewer-name-and-publication']//a[@class='display-name']",
+                ).text.strip()
+                date_posted = i.find_element(
+                    By.XPATH,
+                    "./div[@class='review-text-container']//p[@class='original-score-and-url']//span[@data-qa='review-date']",
+                ).text.strip()
+                review = i.find_element(
+                    By.XPATH,
+                    "./div[@class='review-text-container']//p[@class='review-text']",
+                ).text.strip()
+
+                self.reviews.append(
+                    [title, posted_by, review, date_posted, "critic_review"]
+                )
+
+            next_btn = self.driver.find_elements(By.CLASS_NAME, "next")
+
+            if (
+                len(next_btn) != 0
+                and next_btn[0].get_attribute("class") == "next"
+                and page < max_pages
+            ):
+                next_btn[0].click()
+                sleep(4)
+            else:
+                has_more = False
+
+            page += 1
 
         self.driver.close()
 
         old_window = self.driver.window_handles[0]
         self.driver.switch_to.window(old_window)
+        print(f"Successfully extracted all critic reviews")
 
     def get_audience_reviews(self, title, url_chunk):
         self.driver.execute_script("window.open('');")
@@ -157,51 +199,84 @@ class RottenTomatoesCrawler:
         complete_url = "https://" + self.domain + url_chunk
         self.driver.get(complete_url)
 
-        sleep(4)
+        sleep(3)
         self.driver.execute_script("window.stop();")
 
-        review_rows = self.driver.find_elements(By.CLASS_NAME, ("audience-review-row"))
+        has_more = True
+        page = 1
+        max_pages = 51
 
-        for row in review_rows:
-            posted_by_elems = row.find_elements(By.CLASS_NAME, "audience-reviews__name")
-            posted_by = (
-                posted_by_elems[0].text.strip() if len(posted_by_elems) > 0 else "N/A"
-            )
+        while has_more:
+            print(f"Getting page {page} of {max_pages} from '{title}' audience reviews")
 
-            review_elems = row.find_elements(
-                By.CSS_SELECTOR, "p[data-qa='review-text']"
-            )
-            review = review_elems[0].text.strip() if len(review_elems) > 0 else "N/A"
-
-            date_posted_elems = row.find_elements(
-                By.CSS_SELECTOR, "span[class='audience-reviews__duration']"
-            )
-            date_posted = (
-                date_posted_elems[0].text.strip()
-                if len(date_posted_elems) > 0
-                else "N/A"
+            review_rows = self.driver.find_elements(
+                By.CLASS_NAME, ("audience-review-row")
             )
 
-            self.reviews.append(
-                [title, posted_by, review, date_posted, "audience_review"]
-            )
+            for row in review_rows:
+                posted_by_elems = row.find_elements(
+                    By.CLASS_NAME, "audience-reviews__name"
+                )
+                posted_by = (
+                    posted_by_elems[0].text.strip()
+                    if len(posted_by_elems) > 0
+                    else "N/A"
+                )
+
+                review_elems = row.find_elements(
+                    By.CSS_SELECTOR, "p[data-qa='review-text']"
+                )
+                review = (
+                    review_elems[0].text.strip() if len(review_elems) > 0 else "N/A"
+                )
+
+                date_posted_elems = row.find_elements(
+                    By.CSS_SELECTOR, "span[class='audience-reviews__duration']"
+                )
+                date_posted = (
+                    date_posted_elems[0].text.strip()
+                    if len(date_posted_elems) > 0
+                    else "N/A"
+                )
+
+                self.reviews.append(
+                    [title, posted_by, review, date_posted, "audience_review"]
+                )
+
+            next_btn = self.driver.find_elements(By.CLASS_NAME, "next")
+
+            if (
+                len(next_btn) != 0
+                and next_btn[0].get_attribute("class") == "next"
+                and page < max_pages
+            ):
+                next_btn[0].click()
+                sleep(4)
+            else:
+                has_more = False
+
+            page += 1
 
         self.driver.close()
 
         old_window = self.driver.window_handles[0]
         self.driver.switch_to.window(old_window)
 
+        print(f"Successfully extracted all audience reviews")
+
     def get_metadata(self, soup):
         try:
+            title_elem = soup.find_all("h1", attrs={"data-qa": "score-panel-title"})
+            title = title_elem[0].text.strip() if len(title_elem) > 0 else ""
+
+            print(f"Getting metadata for {title}")
+
             thumbnail_elem = soup.find_all("tile-dynamic", attrs={"class": "thumbnail"})
             thumbnail = (
                 thumbnail_elem[0].find("img").get("src")
                 if len(thumbnail_elem) > 0
                 else ""
             )
-
-            title_elem = soup.find_all("h1", attrs={"data-qa": "score-panel-title"})
-            title = title_elem[0].text.strip() if len(title_elem) > 0 else ""
 
             synopsis_elem = soup.find_all("p", attrs={"data-qa": "movie-info-synopsis"})
             synopsis = synopsis_elem[0].text.strip() if len(synopsis_elem) > 0 else ""
@@ -308,6 +383,8 @@ class RottenTomatoesCrawler:
                     ]
                 )
                 writer.writerows(self.movies)
+
+                print(f"Successfully extracted and saved metadata for {title}")
         except Exception as e:
             print("Error: ", e)
 
