@@ -12,6 +12,7 @@ from selenium.webdriver.common.by import By
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 from dotenv import load_dotenv, find_dotenv
+from selenium.webdriver.chrome.service import Service
 
 
 dotenv_path = find_dotenv()
@@ -35,7 +36,21 @@ class RottenTomatoesCrawler:
     ):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+
+        chrome_path = os.getenv("GOOGLE_CHROME_PATH")
+        driver_path = os.getenv("CHROMEDRIVER_PATH")
+        debug = os.getenv("DEBUG")
+
         self.driver = webdriver.Chrome(options=options)
+
+        if not debug:
+            options.binary_location = chrome_path
+            self.driver = webdriver.Chrome(
+                service=Service(driver_path), options=options
+            )
+
         self.driver.get(self.url)
 
         sleep(5)
