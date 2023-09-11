@@ -1,10 +1,21 @@
+from __future__ import print_function
+
+import os
 import csv
+import json
 import requests
 from time import sleep
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from urllib.parse import urlparse
 from selenium.webdriver.common.by import By
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
+from dotenv import load_dotenv, find_dotenv
+
+
+dotenv_path = find_dotenv()
+load_dotenv(dotenv_path)
 
 
 class RottenTomatoesCrawler:
@@ -15,8 +26,13 @@ class RottenTomatoesCrawler:
         self.reviews = []
         self.domain = urlparse(self.url).netloc
         self.driver = None
+        self.last_review_row = 0
+        self.last_cast_row = 0
+        self.last_movie_row = 0
 
-    def get_page(self):
+    def get_page(
+        self,
+    ):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless")
         self.driver = webdriver.Chrome(options=options)
@@ -88,9 +104,43 @@ class RottenTomatoesCrawler:
                     )
 
                     name = i.find_all("img")[0].get("alt").strip()
-                    role = meta.find("p", attrs={"class": "p--small"}).text.strip()
+                    raw_role = meta.find("p", attrs={"class": "p--small"}).text.strip()
+
+                    role = " ".join([x.strip() for x in raw_role.split(" ")])
 
                     self.cast.append((movie_url, profile_url, name, role))
+
+            index = (
+                self.last_cast_row
+                if self.last_cast_row == 0
+                else self.last_cast_row - 1
+            )
+
+            new_cast = self.cast[index:]
+
+            columns = (
+                None
+                if self.last_cast_row > 0
+                else ["movie_url", "actor_profile_url", "name", "role"]
+            )
+
+            start = self.last_cast_row + 1
+            end = (
+                len(new_cast) + 1
+                if self.last_cast_row == 0
+                else len(new_cast) + self.last_cast_row
+            )
+
+            self.write_to_google_sheet(
+                new_cast,
+                columns,
+                worksheet="Cast",
+                start=start,
+                end=end,
+                last_column_letter="D",
+            )
+
+            self.last_cast_row = end
 
             with open("data/cast_and_crew.csv", "w") as cast_csv:
                 writer = csv.writer(cast_csv)
@@ -122,6 +172,38 @@ class RottenTomatoesCrawler:
         if len(audience_reviews_url_elems) > 0:
             self.get_audience_reviews(title, audience_reviews_url_elems[0].get("href"))
 
+        index = (
+            self.last_review_row
+            if self.last_review_row == 0
+            else self.last_review_row - 1
+        )
+
+        new_reviews = self.reviews[index:]
+
+        columns = (
+            None
+            if self.last_review_row > 0
+            else ["movie", "posted_by", "text", "date_posted", "review_type"]
+        )
+
+        start = self.last_review_row + 1
+        end = (
+            len(new_reviews) + 1
+            if self.last_review_row == 0
+            else len(new_reviews) + self.last_review_row
+        )
+
+        self.write_to_google_sheet(
+            new_reviews,
+            columns,
+            worksheet="Reviews",
+            start=start,
+            end=end,
+            last_column_letter="E",
+        )
+
+        self.last_review_row = end
+
         with open("data/reviews.csv", "w") as reviews_csv:
             writer = csv.writer(reviews_csv)
             writer.writerow(
@@ -145,7 +227,7 @@ class RottenTomatoesCrawler:
 
         has_more = True
         page = 1
-        max_pages = 51
+        max_pages = 10
 
         while has_more:
             print(f"Getting page {page} of {max_pages} from '{title}' critic reviews")
@@ -178,7 +260,7 @@ class RottenTomatoesCrawler:
                 and page < max_pages
             ):
                 next_btn[0].click()
-                sleep(4)
+                sleep(3)
             else:
                 has_more = False
 
@@ -204,7 +286,7 @@ class RottenTomatoesCrawler:
 
         has_more = True
         page = 1
-        max_pages = 51
+        max_pages = 10
 
         while has_more:
             print(f"Getting page {page} of {max_pages} from '{title}' audience reviews")
@@ -251,7 +333,7 @@ class RottenTomatoesCrawler:
                 and page < max_pages
             ):
                 next_btn[0].click()
-                sleep(4)
+                sleep(3)
             else:
                 has_more = False
 
@@ -311,15 +393,23 @@ class RottenTomatoesCrawler:
                 if label == "Rating:":
                     rating = value
                 if label == "Genre:":
-                    genre = [word.strip() for word in value.split(",")]
+                    # genre = [word.strip() for word in value.split(",")]
+                    genre = f"{','.join([word.strip() for word in value.split(',')])}"
                 if label == "Original Language:":
                     language = value
                 if label == "Director:":
-                    director = [word.strip() for word in value.split(",")]
+                    # director = [word.strip() for word in value.split(",")]
+                    director = (
+                        f"{','.join([word.strip() for word in value.split(',')])}"
+                    )
                 if label == "Producer:":
-                    producer = [word.strip() for word in value.split(",")]
+                    # producer = [word.strip() for word in value.split(",")]
+                    producer = (
+                        f"{','.join([word.strip() for word in value.split(',')])}"
+                    )
                 if label == "Writer:":
-                    writer = [word.strip() for word in value.split(",")]
+                    # writer_list = [word.strip() for word in value.split(",")]
+                    writer = f"{','.join([word.strip() for word in value.split(',')])}"
                 if label == "Release Date (Theaters):":
                     theater_release_date = value
                 if label == "Release Date (Streaming):":
@@ -331,17 +421,23 @@ class RottenTomatoesCrawler:
                 if label == "Distributor:":
                     distributor = value
                 if label == "Production Co:":
-                    production_company = [word.strip() for word in value.split(",")]
+                    # production_company = [word.strip() for word in value.split(",")]
+                    production_company = (
+                        f"{','.join([word.strip() for word in value.split(',')])}"
+                    )
                 if label == "Sound Mix:":
-                    sound_mix = [word.strip() for word in value.split(",")]
+                    # sound_mix = [word.strip() for word in value.split(",")]
+                    sound_mix = (
+                        f"{','.join([word.strip() for word in value.split(',')])}"
+                    )
 
             self.movies.append(
                 [
-                    thumbnail,
                     title,
+                    genre,
+                    thumbnail,
                     synopsis,
                     rating,
-                    genre,
                     audience_score,
                     tomatometer_score,
                     language,
@@ -358,15 +454,68 @@ class RottenTomatoesCrawler:
                 ]
             )
 
+            index = (
+                self.last_movie_row
+                if self.last_movie_row == 0
+                else self.last_movie_row - 1
+            )
+
+            new_movies = self.movies[index:]
+
+            columns = (
+                None
+                if self.last_movie_row > 0
+                else [
+                    "title",
+                    "genre",
+                    "thumbnail_url",
+                    "synopsis",
+                    "rating",
+                    "audience_score",
+                    "tomatometer_score",
+                    "language",
+                    "director",
+                    "writer",
+                    "producer",
+                    "theater_release_date",
+                    "streaming_release_date",
+                    "usa_box_office_gross",
+                    "runtime",
+                    "distributor",
+                    "production_company",
+                    "soundmix",
+                ]
+            )
+
+            start = self.last_movie_row + 1
+            end = (
+                len(new_movies) + 1
+                if self.last_movie_row == 0
+                else len(new_movies) + self.last_movie_row
+            )
+
+            print("End: ", end)
+
+            self.write_to_google_sheet(
+                new_movies,
+                columns,
+                worksheet="Movies",
+                start=start,
+                end=end,
+                last_column_letter="R",
+            )
+
+            self.last_movie_row = end
+
             with open("data/movies.csv", "w") as movies_csv:
                 writer = csv.writer(movies_csv)
                 writer.writerow(
                     [
-                        "thumbnail_url",
                         "title",
+                        "genre",
+                        "thumbnail_url",
                         "synopsis",
                         "rating",
-                        "genre",
                         "audience_score",
                         "tomatometer_score",
                         "language",
@@ -390,3 +539,50 @@ class RottenTomatoesCrawler:
 
     def store_data(self):
         pass
+
+    def write_to_google_sheet(
+        self, data, columns, worksheet, start, end, last_column_letter
+    ):
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            # "https://www.googleapis.com/auth/drive",
+        ]
+
+        # path = os.path.join(os.getcwd(), "credentials.json")
+        info_str = os.getenv("CREDENTIALS")
+        info_json = json.loads(info_str)
+
+        credentials = service_account.Credentials.from_service_account_info(
+            info_json, scopes=scopes
+        )
+        spreadsheet_service = build("sheets", "v4", credentials=credentials)
+        # drive_service = build("drive", "v3", credentials=credentials)
+
+        values = data
+
+        if columns is not None:
+            values.insert(0, columns)
+
+        range = f"{worksheet}!A{start}:{last_column_letter}{end}"
+
+        body = {"values": values}
+
+        result = (
+            spreadsheet_service.spreadsheets()
+            .values()
+            .update(
+                spreadsheetId="11ZDCJ0_1oAkAcvXUQkQx95uAt_eeO9h5XNxtwJ5eeDc",
+                range=range,
+                valueInputOption="USER_ENTERED",
+                body=body,
+            )
+            .execute()
+        )
+
+        print(result)
+
+        print("\n--- Writing from Google Sheets------")
+        print("------------------------------------")
+        print("\t{0} cells updated.".format(result.get("updatedCells")))
+        print("\t{0} rows updated.".format(result.get("updatedRows")))
+        print("------------------------------------")

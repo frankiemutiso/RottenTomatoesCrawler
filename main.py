@@ -3,6 +3,7 @@ from crawler.crawler import RottenTomatoesCrawler
 
 def main():
     crawler = RottenTomatoesCrawler()
+
     crawler.get_page()
 
 
