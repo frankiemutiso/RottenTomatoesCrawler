@@ -45,9 +45,9 @@ class RottenTomatoesCrawler:
 
         self.driver = webdriver.Chrome(options=options)
 
-        print(debug)
-
         if not debug:
+            print(debug)
+
             options.binary_location = chrome_path
             self.driver = webdriver.Chrome(
                 service=Service(driver_path), options=options
