@@ -280,9 +280,9 @@ class RottenTomatoesCrawler:
                 cookie_popups = self.driver.find_elements(By.ID, "onetrust-policy")
 
                 if len(cookie_popups) > 0:
-                    print(cookie_popups.get_attribute("outerHTML"))
+                    print(cookie_popups[0].get_attribute("outerHTML"))
                     popup_soup = BeautifulSoup(
-                        cookie_popups.get_attribute("outerHTML"), "html.parser"
+                        cookie_popups[0].get_attribute("outerHTML"), "html.parser"
                     )
                     print(popup_soup)
                     cookie_popups[0].find_element(By.ID, "accept-button").click()
