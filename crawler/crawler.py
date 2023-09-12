@@ -44,14 +44,11 @@ class RottenTomatoesCrawler:
         driver_path = os.getenv("CHROMEDRIVER_PATH")
         debug = os.getenv("DEBUG")
 
-        print(debug)
         self.driver = None
 
         if debug is True:
-            print("DEBUG(1)", debug)
             self.driver = webdriver.Chrome(options=options)
         else:
-            print("DEBUG(0)", debug)
             options.binary_location = chrome_path
             self.driver = webdriver.Chrome(
                 service=Service(executable_path=driver_path), options=options
@@ -280,6 +277,7 @@ class RottenTomatoesCrawler:
                 and next_btn[0].get_attribute("class") == "next"
                 and page < max_pages
             ):
+                print("BTN: ", next_btn[0])
                 next_btn[0].click()
                 sleep(3)
             else:
