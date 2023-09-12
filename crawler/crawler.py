@@ -281,10 +281,12 @@ class RottenTomatoesCrawler:
 
                 if len(cookie_popups) > 0:
                     cookie_popup = cookie_popups[0]
-                    print(cookie_popup)
+                    print(cookie_popup.get_attribute("outerHTML"))
                     self.driver.execute_script(
                         "arguments[0].scrollIntoView();", next_btn[0]
                     )
+
+                    print("scrolled to view...")
 
                 #     btn = cookie_popup.find_elements(By.CLASS_NAME, "ot-link-btn")
 
