@@ -281,11 +281,9 @@ class RottenTomatoesCrawler:
 
                 if len(cookie_popups) > 0:
                     print(cookie_popups[0].get_attribute("outerHTML"))
-                    popup_soup = BeautifulSoup(
-                        cookie_popups[0].get_attribute("outerHTML"), "html.parser"
-                    )
-                    print(popup_soup)
-                    cookie_popups[0].find_element(By.ID, "accept-button").click()
+                    cookie_popups[0].find_element(
+                        By.CLASS_NAME, "ot-link-btn onetrust-vendors-list-handler"
+                    ).click()
 
                 print("BTN: ", next_btn[0])
                 next_btn[0].click()
