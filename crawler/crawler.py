@@ -38,6 +38,7 @@ class RottenTomatoesCrawler:
         options.add_argument("--headless")
         options.add_argument("--disable-gpu")
         options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
 
         chrome_path = os.getenv("GOOGLE_CHROME_PATH")
         driver_path = os.getenv("CHROMEDRIVER_PATH")
@@ -53,7 +54,7 @@ class RottenTomatoesCrawler:
             print("DEBUG(0)", debug)
             options.binary_location = chrome_path
             self.driver = webdriver.Chrome(
-                service=Service(driver_path), options=options
+                service=Service(executable_path=driver_path), options=options
             )
 
         self.driver.get(self.url)
