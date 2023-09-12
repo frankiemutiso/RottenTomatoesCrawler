@@ -281,16 +281,21 @@ class RottenTomatoesCrawler:
 
                 if len(cookie_popups) > 0:
                     cookie_popup = cookie_popups[0]
-                    btn = cookie_popup.find_elements(By.CLASS_NAME, "ot-link-btn")
+                    print(cookie_popup)
+                    self.driver.execute_script(
+                        "arguments[0].scrollIntoView();", next_btn[0]
+                    )
 
-                    if len(btn) > 0:
-                        btn[0].click()
+                #     btn = cookie_popup.find_elements(By.CLASS_NAME, "ot-link-btn")
 
-                sections_popups = self.driver.find_elements(By.ID, "ot-lst-cnt")
+                #     if len(btn) > 0:
+                #         btn[0].click()
 
-                if len(sections_popups) > 0:
-                    print(len(sections_popups))
-                    print(sections_popups[0].get_attribute("outerHTML"))
+                # sections_popups = self.driver.find_elements(By.ID, "ot-lst-cnt")
+
+                # if len(sections_popups) > 0:
+                #     print(len(sections_popups))
+                #     print(sections_popups[0].get_attribute("outerHTML"))
 
                 next_btn[0].click()
                 sleep(3)
