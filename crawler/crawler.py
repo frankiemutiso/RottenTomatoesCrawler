@@ -289,7 +289,8 @@ class RottenTomatoesCrawler:
                 sections_popups = self.driver.find_elements(By.ID, "ot-lst-cnt")
 
                 if len(sections_popups) > 0:
-                    print(sections_popups.get_attribute("outerHTML"))
+                    print(len(sections_popups))
+                    print(sections_popups[0].get_attribute("outerHTML"))
 
                 next_btn[0].click()
                 sleep(3)
