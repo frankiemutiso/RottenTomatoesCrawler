@@ -277,6 +277,13 @@ class RottenTomatoesCrawler:
                 and next_btn[0].get_attribute("class") == "next"
                 and page < max_pages
             ):
+                cookie_popups = self.driver.find_elements(By.ID, "onetrust-policy")
+
+                if len(cookie_popups) > 0:
+                    popup_soup = BeautifulSoup(cookie_popups, "html.parser")
+                    print(popup_soup)
+                    cookie_popups[0].find_element(By.ID, "accept-button").click()
+
                 print("BTN: ", next_btn[0])
                 next_btn[0].click()
                 sleep(3)
