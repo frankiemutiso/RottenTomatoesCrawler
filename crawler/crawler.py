@@ -46,7 +46,7 @@ class RottenTomatoesCrawler:
         print(debug)
         self.driver = None
 
-        if debug:
+        if debug is True:
             print("DEBUG(1)", debug)
             self.driver = webdriver.Chrome(options=options)
         else:
