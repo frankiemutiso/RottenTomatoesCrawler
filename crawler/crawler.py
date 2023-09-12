@@ -45,6 +45,8 @@ class RottenTomatoesCrawler:
 
         self.driver = webdriver.Chrome(options=options)
 
+        print(debug)
+
         if debug == False:
             print(debug)
 
