@@ -280,10 +280,12 @@ class RottenTomatoesCrawler:
                 cookie_popups = self.driver.find_elements(By.ID, "onetrust-policy")
 
                 if len(cookie_popups) > 0:
-                    print(cookie_popups[0].get_attribute("outerHTML"))
-                    cookie_popups[0].find_element(
-                        By.CLASS_NAME, "ot-link-btn onetrust-vendors-list-handler"
-                    ).click()
+                    cookie_popup = cookie_popups[0]
+                    print(cookie_popup.get_attribute("outerHTML"))
+                    btn = cookie_popup.find_elements(By.CLASS_NAME, "ot-link-btn")
+
+                    if len(btn) > 0:
+                        btn[0].click()
 
                 print("BTN: ", next_btn[0])
                 next_btn[0].click()
