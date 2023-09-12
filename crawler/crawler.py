@@ -43,13 +43,14 @@ class RottenTomatoesCrawler:
         driver_path = os.getenv("CHROMEDRIVER_PATH")
         debug = os.getenv("DEBUG")
 
-        self.driver = webdriver.Chrome(options=options)
-
         print(debug)
+        self.driver = None
 
-        if debug == False:
-            print(debug)
-
+        if debug:
+            print("DEBUG(1)", debug)
+            self.driver = webdriver.Chrome(options=options)
+        else:
+            print("DEBUG(0)", debug)
             options.binary_location = chrome_path
             self.driver = webdriver.Chrome(
                 service=Service(driver_path), options=options
