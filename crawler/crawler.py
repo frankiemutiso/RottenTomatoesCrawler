@@ -46,7 +46,9 @@ class RottenTomatoesCrawler:
 
         self.driver = None
 
-        if debug is True:
+        print(debug)
+
+        if debug == True:
             self.driver = webdriver.Chrome(options=options)
         else:
             options.binary_location = chrome_path
@@ -59,16 +61,17 @@ class RottenTomatoesCrawler:
         sleep(5)
         self.driver.execute_script("window.stop();")
 
-        more_btn = self.driver.find_elements(
-            By.CSS_SELECTOR, "button[data-qa='dlp-load-more-button']"
-        )
+        has_more = True
+        last_index = 0
 
-        while len(more_btn) > 0:
-            last_index = -1
-            temp_index = 0
+        while has_more:
+            print("Last index: ", last_index)
+
+            # temp_index = 0
             movie_cards = self.driver.find_elements(By.CLASS_NAME, ("js-tile-link"))
 
-            for i in range(len(movie_cards) - 1, last_index, -1):
+            for i in range(len(movie_cards) - 1, last_index - 1, -1):
+                print("i: ", i)
                 elem = movie_cards[i]
                 url = None
 
@@ -79,11 +82,20 @@ class RottenTomatoesCrawler:
                     url = inner_elem.get_attribute("href")
 
                 self.extract_data(url)
-                temp_index = i
+                # temp_index = len(movie_cards)
 
-            last_index = temp_index
-            more_btn[0].click()
-            sleep(5)
+            more_btn = self.driver.find_elements(
+                By.CSS_SELECTOR, "button[data-qa='dlp-load-more-button']"
+            )
+
+            if len(more_btn) > 0:
+                last_index = len(movie_cards)
+                more_btn[0].click()
+                has_more = True
+
+                sleep(5)
+            else:
+                has_more = False
 
         self.driver.quit()
 
@@ -96,9 +108,9 @@ class RottenTomatoesCrawler:
         response = requests.get(url, headers=headers)
         soup = BeautifulSoup(response.content, "html.parser")
 
-        self.get_cast_and_crew(soup=soup, movie_url=url)
+        # self.get_cast_and_crew(soup=soup, movie_url=url)
         self.get_metadata(soup=soup)
-        self.get_reviews(soup=soup)
+        # self.get_reviews(soup=soup)
 
     def get_cast_and_crew(self, soup, movie_url):
         try:
